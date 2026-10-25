@@ -1,4 +1,4 @@
-name: Deploy Next.js to Cloudflare Pages
+name: Build and deploy to Cloudflare Pages
 
 on:
   push:
@@ -14,6 +14,10 @@ jobs:
     permissions:
       contents: read
       deployments: write
+    env:
+      # Deployment runs only when these repository secrets are configured; the build always runs as a check.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
       - name: Checkout repository
@@ -22,21 +26,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Next.js
+      - name: Build (static export to out/)
         run: npm run build
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        if: github.event_name == 'push' && env.CLOUDFLARE_API_TOKEN != ''
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: devsign-hub
-          directory: out
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref_name }}
+          command: pages deploy out --project-name=devsign-hub --branch=${{ github.ref_name }}
